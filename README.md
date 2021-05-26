@@ -1,5 +1,5 @@
 # chat-match
-A web API 
+A web API to facilitate conversations between a group of people who'd like to get to know each other better.
 
 ## Requirements
 - Python 3.7+
