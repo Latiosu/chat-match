@@ -1,22 +1,37 @@
 # chat-match
+A web API 
 
-## Use Case
+## Requirements
+- Python 3.7+
+- Poetry
+
+## Setup
+1. Save firebase secret in repository root as `firebase-secret.json`
+2. Run `poetry install`
+
+## Run
+```
+export FLASK_APP=chat_match
+export FLASK_ENV=development
+poetry run flask run
+```
+
+## Testing via Postman
+Download collection from https://www.getpostman.com/collections/88e16a9148bef8bd794c
+
+## Design
+
+### Use Case
 When creating a breakout room in Zoom and organising 1-on-1 chats, who should each person speak to such that everyone has spoken to everyone else after X events.
 
-## Data
-- Graphs: Id,
-- Nodes: Graph,Id,Name
-- Events: Graph,Event,Datetime
-- Edges: Event,Id,ConnectingNodeId,...
-
-## Features
+### Features
 - View/Add/Delete undirected graph
 - View/Add/Delete/Update node
 - View/Add/Delete events
 - Match nodes (event)
 - Show list of previous matches (30 days)
 
-## Matching Rules
+### Matching Rules
 1. No two lines connecting the same nodes
 2. No line connecting node to itself
 3. Order of lines being connected matters
