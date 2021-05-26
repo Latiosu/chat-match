@@ -30,13 +30,13 @@ class Graphs(Resource):
         parser = reqparse.RequestParser()
         parser.add_argument('graph_id', required=False)
         args = parser.parse_args()
-        graphId = args['graph_id']
-        if graphId is not None and self.is_valid_graph_id(graphId):
-            graph = graphs_ref.document(graphId).get()
+        graph_id = args['graph_id']
+        if graph_id is not None and self.is_valid_graph_id(graph_id):
+            graph = graphs_ref.document(graph_id).get()
             if graph.exists:
                 return {'data': graph.to_dict()}, 200
             else:
-                return {'message': f'No such graph with id {graphId}'}, 401
+                return {'message': f'No such graph with id {graph_id}'}, 401
         else:
             query = graphs_ref.order_by('created').limit(50)
             res = {}
@@ -44,7 +44,7 @@ class Graphs(Resource):
             for graph in query.stream():
                 res[graph.id] = graph.to_dict()
             return {'data': res}, 200
-    
+
     def post(self):
         graphs_ref = db.collection('graphs')
         parser = reqparse.RequestParser()
@@ -55,53 +55,51 @@ class Graphs(Resource):
         # Generate graph identifier
         success = False
         attempt = 0
-        graphId = None
+        graph_id = None
         while not success and attempt < 3:
-            graphId = self.generate_identifier()
+            graph_id = self.generate_identifier()
             attempt += 1
-            if not graphs_ref.document(graphId).get().exists:
+            if not graphs_ref.document(graph_id).get().exists:
                 success = True
-        if graphId is None:
+        if graph_id is None:
             return {'message': f'Unable to generate graph, please try again later'}, 500
 
         # Build initial graph
-        nodes = {}
-        for name in names:
-            nodes[name] = {'edges': []}
         graph = {
+            'graph_id': graph_id,
             'created': str(datetime.now(timezone.utc)),
             'events': [],
-            'nodes': nodes
+            'nodes': [{'node_id': i, 'name': name, 'edges': []} for i, name in enumerate(names)]
         }
-        graphs_ref.document(graphId).set(graph)
-        return {'graph_id': graphId}, 200
-    
+        graphs_ref.document(graph_id).set(graph)
+        return {'graph_id': graph_id}, 200
+
     def delete(self):
         graphs_ref = db.collection('graphs')
         events_ref = db.collection('events')
         parser = reqparse.RequestParser()
         parser.add_argument('graph_id', required=True, help="graph_id parameter required")
         args = parser.parse_args()
-        graphId = args['graph_id']
+        graph_id = args['graph_id']
 
-        if not self.is_valid_graph_id(graphId):
-            return {'message': f'Invalid graph id {graphId}'}, 400
-    
-        graph = graphs_ref.document(graphId).get()
+        if not self.is_valid_graph_id(graph_id):
+            return {'message': f'Invalid graph id {graph_id}'}, 400
+
+        graph = graphs_ref.document(graph_id).get()
         if not graph.exists:
-            return {'message': f'No such graph with id {graphId}'}, 404
-        
-        graphs_ref.document(graphId).delete()
-        for event in events_ref.where('graph', '==', graphId).stream():
-            event.delete()
-        return {'message': f'Deleted graph and events with graph_id {graphId}'}, 200
-    
-    def is_valid_graph_id(self, graphId):
-        cleaned = re.sub('[^A-Z]', '', graphId).strip()
+            return {'message': f'No such graph with id {graph_id}'}, 404
+
+        for event in events_ref.where('graph_id', '==', graph_id).stream():
+            events_ref.document(event.to_dict()['event_id']).delete()
+        graphs_ref.document(graph_id).delete()
+        return {'message': f'Deleted graph and events with graph_id {graph_id}'}, 200
+
+    def is_valid_graph_id(self, graph_id):
+        cleaned = re.sub('[^A-Z]', '', graph_id).strip()
         if len(cleaned) != 4:
             return False
         return True
-    
+
     def filter_names(self, names):
         filtered_names = []
         for name in names:
@@ -109,7 +107,7 @@ class Graphs(Resource):
             if len(cleaned) > 0 and cleaned not in filtered_names:
                 filtered_names.append(cleaned)
         return filtered_names
-    
+
     def generate_identifier(self):
         return "".join(random.sample(list(string.ascii_uppercase), k=4))
 
@@ -120,31 +118,28 @@ class Events(Resource):
     def get(self):
         events_ref = db.collection('events')
         parser = reqparse.RequestParser()
-        parser.add_argument('graph_id', required=False)
         parser.add_argument('event_id', required=False)
+        parser.add_argument('graph_id', required=False)
         args = parser.parse_args()
-        eventId = args['event_id']
-        graphId = args['graph_id']
-        if (eventId is not None and graphId is not None) \
-            or (eventId is None and graphId is None):
+        event_id = args['event_id']
+        graph_id = args['graph_id']
+        if (event_id is not None and graph_id is not None) \
+            or (event_id is None and graph_id is None):
             return {'message': f'One of either graph_id or event_id is required'}, 400
-        elif eventId is not None and self.is_valid_event_id(eventId):
-            event = events_ref.document(eventId).get()
+        elif event_id is not None and self.is_valid_event_id(event_id):
+            event = events_ref.document(event_id).get()
             if event.exists:
                 return {'data': event.to_dict()}, 200
             else:
-                return {'message': f'No such event with id {eventId}'}, 401
-        elif graphId is not None and self.is_valid_graph_id(graphId):
-            query = events_ref.where('graph', '==', graphId).order_by('created')
+                return {'message': f'No such event with id {event_id}'}, 401
+        elif graph_id is not None and self.is_valid_graph_id(graph_id):
+            query = events_ref.where('graph_id', '==', graph_id).order_by('created')
             res = []
-            count = 0
             for event in query.stream():
-                count += 1
                 res.append(event.to_dict())
-            if count > 0:
-                return {'data': res}, 200
-            else:
-                return {'message': f'No events under graph_id {graphId}'}, 401
+            return {'data': res}, 200
+        else:
+            return {'message': f'Invalid graph_id or event_id given'}, 400
 
     def post(self):
         graphs_ref = db.collection('graphs')
@@ -152,64 +147,82 @@ class Events(Resource):
         parser = reqparse.RequestParser()
         parser.add_argument('graph_id', required=True)
         args = parser.parse_args()
-        graphId = args['graph_id']
+        graph_id = args['graph_id']
 
-        if not self.is_valid_graph_id(graphId):
-            return {'message': f'Invalid graph id {graphId}'}, 400
+        if not self.is_valid_graph_id(graph_id):
+            return {'message': f'Invalid graph id {graph_id}'}, 400
 
-        graph = graphs_ref.document(graphId).get()
+        graph = graphs_ref.document(graph_id).get()
         if not graph.exists:
-            return {'message': f'No such graph with id {graphId}'}, 401
+            return {'message': f'No such graph with id {graph_id}'}, 401
 
         # Compute changes and persist
-        res = self.algorithm(graph)
+        res = self.algorithm(graph.to_dict(), graph_id)
         if res is None:
-            return {'message': f'Unable to create event, please try again later'}, 500
+            return {'message': f'Insufficient nodes to match, at least 2 required'}, 401
 
-        graphs_ref.document(graphId).set(res['graph'])
-        events_ref.document(res['event_id']).set(res['event'])
-        return {'data': res['event'].to_dict()}, 200
+        graphs_ref.document(graph_id).set(res['graph'])
+        events_ref.document(str(res['event_id'])).set(res['event'])
+        return {'data': res['event']}, 200
 
-    def algorithm(self, graph, graphId):
-        """Computes matches and returns updated graph + event"""
-        nodes = []
-        edges = set()
-        new_named_edges = []
-        event = {
-            'graph': graphId,
-            'created': str(datetime.now(timezone.utc)),
-            'edges': []
-        }
+    def algorithm(self, graph, graph_id, match_odd=False):
+        """Computes matches and returns updated graph + event."""
+        N = len(graph['nodes'])
+        if N < 2:
+            return None
 
         # Parse input data
-        for node in graph['nodes']:
-            nodes.append(node['name'])
+        matrix = [[False for i in range(N)] for j in range(N)]
+        for nodeId, node in enumerate(graph['nodes']):
+            matrix[nodeId][nodeId] = True # Ignore self
             for edge in node['edges']:
-                edges.add(f'{node.key},{edge}' if node.key < edge else f'{edge},{node.key}')
+                matrix[nodeId][edge] = True # Undirected edge exists
+                matrix[edge][nodeId] = True
 
-        # for node in nodes:
-            # TODO
-            # 1. Find a new edge to not self
-            
+        assigned = []
+        edges = []
+        # TODO: Handle matching odd number of nodes
+        # Find and record new edges, one edge per node
+        for nodeId, node in enumerate(graph['nodes']):
+            if nodeId not in assigned:
+                for otherId in range(0,N):
+                    if otherId not in assigned and not matrix[nodeId][otherId]:
+                        assigned.append(nodeId)
+                        assigned.append(otherId)
+                        edges.append({
+                            'node_a': nodeId,
+                            'node_b': otherId,
+                            'name_a': node['name'],
+                            'name_b': graph['nodes'][otherId]['name']
+                        })
+                        node['edges'].append(otherId)
+                        graph['nodes'][otherId]['edges'].append(nodeId)
+                        matrix[nodeId][otherId] = True
+                        matrix[otherId][nodeId] = True
+                        break
 
-            # 2. Save to graph and event and named edge list
-        
-        
+        event_id = str(uuid.uuid4())
+        event = {
+            'event_id': event_id,
+            'graph_id': graph_id,
+            'created': str(datetime.now(timezone.utc)),
+            'edges': edges
+        }
+        graph['events'].append(event_id)
+        return {'graph': graph, 'event_id': event_id, 'event': event}
 
-        return {'graph': graph, 'event_id': uuid.uuid4(), 'event': event}
-    
-    def is_valid_graph_id(self, graphId):
-        cleaned = re.sub('[^A-Z]', '', graphId).strip()
+    def is_valid_graph_id(self, graph_id):
+        cleaned = re.sub('[^A-Z]', '', graph_id).strip()
         if len(cleaned) != 4:
             return False
         return True
-    
-    def is_valid_event_id(self, eventId):
+
+    def is_valid_event_id(self, event_id):
         try:
-            uuid_obj = UUID(eventId, version=4)
+            uuid_obj = UUID(event_id, version=4)
         except ValueError:
             return False
-        return str(uuid_obj) == eventId
+        return str(uuid_obj) == event_id
 
 
 class Nodes(Resource):
@@ -229,9 +242,9 @@ class Nodes(Resource):
         """Update node in graph"""
         # TODO: Implement
         pass
-    
-    def is_valid_graph_id(self, graphId):
-        cleaned = re.sub('[^A-Z]', '', graphId).strip()
+
+    def is_valid_graph_id(self, graph_id):
+        cleaned = re.sub('[^A-Z]', '', graph_id).strip()
         if len(cleaned) != 4:
             return False
         return True

@@ -4,10 +4,12 @@ A web API to facilitate conversations between a group of people who'd like to ge
 ## Requirements
 - Python 3.7+
 - Poetry
+- Firebase (Cloud Firestore)
 
 ## Setup
 1. Save firebase secret in repository root as `firebase-secret.json`
 2. Run `poetry install`
+3. When testing, Firebase composite index must be created for Events collections (follow link when querying GET Events endpoint)
 
 ## Run
 ```
@@ -42,23 +44,50 @@ When creating a breakout room in Zoom and organising 1-on-1 chats, who should ea
 ```
 graphs:
     G1:
+        graph_id: G1
         created: 23/05/2021 12:00:00
-        events: [E1, E2]
-        nodes:
-            1:
+        events: [UUID_E1, UUID_E2]
+        nodes: [
+            {
+                node_id: 0
                 name: Eric
-                edges: [2]
-            2: 
+                edges: [1, 2]
+            }
+            {
+                node_id: 1
                 name: Nadia
-                edges: [1]
+                edges: [0]
+            }
+            {
+                node_id: 2
+                name: Charizard
+                edges: [0]
+            }
+        ]
 
 events:
-    E1:
-        graph: G1
+    UUID_E1:
+        event_id: UUID_1
+        graph_id: G1
         created: 24/05/2021 13:00:00
-        edges: [[2, 1]]
-    E2:
-        graph: G1
+        edges: [
+            {
+                node_a: 0
+                node_b: 1
+                name_a: Eric
+                name_b: Nadia
+            }
+        ]
+    UUID_E2:
+        event_id: UUID_2
+        graph_id: G1
         created: 24/05/2021 18:30:00
-        edges: [[1, 2]]
+        edges: [
+            {
+                node_a: 0
+                node_b: 2
+                name_a: Eric
+                name_b: Charizard
+            }
+        ]
 ```
