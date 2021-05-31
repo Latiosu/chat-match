@@ -33,6 +33,13 @@ When creating a breakout room in Zoom and organising 1-on-1 chats, who should ea
 - Match nodes (event)
 - Show list of previous matches (30 days)
 
+### Current Limitations
+- Missing ability to add/remove edges from graph/event (GET/POST/DELETE edges)
+- Matching odd number of nodes (algorithm)
+- Adding/removing nodes later (GET/DELETE nodes)
+- Marking nodes as absent for a session (POST events param)
+- Renaming nodes (PUT nodes)
+
 ### Matching Rules
 1. No two lines connecting the same nodes
 2. No line connecting node to itself

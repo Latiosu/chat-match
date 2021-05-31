@@ -146,8 +146,10 @@ class Events(Resource):
         events_ref = db.collection('events')
         parser = reqparse.RequestParser()
         parser.add_argument('graph_id', required=True)
+        parser.add_argument('ignore_ids', required=False)
         args = parser.parse_args()
         graph_id = args['graph_id']
+        # names = self.filter_ids(args['ignore_ids'].split(','))
 
         if not self.is_valid_graph_id(graph_id):
             return {'message': f'Invalid graph id {graph_id}'}, 400
@@ -230,8 +232,27 @@ class Nodes(Resource):
 
     def get(self):
         """Get node in graph"""
-        # TODO: Implement
-        pass
+        graphs_ref = db.collection('graphs')
+        parser = reqparse.RequestParser()
+        parser.add_argument('graph_id', required=True)
+        parser.add_argument('node_id', required=True)
+        args = parser.parse_args()
+        graph_id = args['graph_id']
+        node_id = args['node_id']
+        if not self.is_valid_graph_id(graph_id):
+            return {'message': f'Invalid graph id {graph_id}'}, 401
+        
+        graph = graphs_ref.document(graph_id).get()
+        if not graph.exists:
+            return {'message': f'No such graph with id {graph_id}'}, 404
+        if not self.is_valid_node_id(node_id):
+            return {'message': f'Invalid node id {node_id}'}, 401
+        
+        nodes = {node['node_id']:node for node in graph.to_dict()['nodes']}
+        if int(node_id) not in nodes:
+            return {'message': f'No such node in graph with id {node_id}'}, 404
+        else:
+            return {'data': nodes[int(node_id)]}, 200
 
     def post(self):
         """Add node to graph"""
@@ -243,9 +264,20 @@ class Nodes(Resource):
         # TODO: Implement
         pass
 
+    def delete(self):
+        """Remove node from graph"""
+        # TODO: Implement
+        pass
+
     def is_valid_graph_id(self, graph_id):
         cleaned = re.sub('[^A-Z]', '', graph_id).strip()
         if len(cleaned) != 4:
+            return False
+        return True
+    
+    def is_valid_node_id(self, node_id):
+        cleaned = re.sub('[^0-9]', '', node_id).strip()
+        if len(cleaned) == 0:
             return False
         return True
 
