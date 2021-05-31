@@ -21,6 +21,10 @@ poetry run flask run
 ## Testing via Postman
 Download collection from https://www.getpostman.com/collections/88e16a9148bef8bd794c
 
+**Get Graph Endpoint**
+![image](https://user-images.githubusercontent.com/7020503/119722363-91d2d600-beaf-11eb-9794-228447aff969.png)
+
+
 ## Design
 
 ### Use Case
